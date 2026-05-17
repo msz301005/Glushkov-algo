@@ -1,0 +1,17 @@
+dist-newstyle/
+.stack-work/
+
+*.o
+*.hi
+*.dyn_o
+*.dyn_hi
+
+.DS_Store
+
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
