@@ -26,11 +26,15 @@ renderStandaloneTikz dfa =
 
 renderTikzPicture :: DFA -> String
 renderTikzPicture dfa =
+  let layout = layoutStates dfa
+      coordinates = coordinateMap layout
+      mainEdges = acceptingPathEdges dfa
+   in
   unlines
     ( [ "\\begin{tikzpicture}[shorten >=1pt, node distance=3cm, on grid, auto]"
       ]
-        ++ map (renderNode dfa) (layoutStates dfa)
-        ++ renderPathBlock dfa
+        ++ map (renderNode dfa) layout
+        ++ renderPathBlock dfa coordinates mainEdges
         ++ [ "\\end{tikzpicture}" ]
     )
 
@@ -48,13 +52,61 @@ renderStateSetComments dfa =
 
 layoutStates :: DFA -> [(State, Int, Int)]
 layoutStates dfa =
-  [ (state, 3 * column, -2 * row)
-  | (index, state) <- zip [0 :: Int ..] (Set.toList (dfaStates dfa))
-  , let (row, column) = index `divMod` statesPerRow
-  ]
+  pathLayout ++ restLayout
+  where
+    path = acceptingPath dfa
+    pathSet = Set.fromList path
+    pathLayout =
+      [ (state, 3 * column, 0)
+      | (column, state) <- zip [0 :: Int ..] path
+      ]
+    restStates =
+      filter (`Set.notMember` pathSet) (Set.toList (dfaStates dfa))
+    restLayout =
+      [ (state, 3 * centeredColumn rowWidth index, -3 * (row + 1))
+      | (index, state) <- zip [0 :: Int ..] restStates
+      , let (row, _) = index `divMod` rowWidth
+      ]
+    rowWidth = max 4 (length path)
 
-statesPerRow :: Int
-statesPerRow = 5
+centeredColumn :: Int -> Int -> Int
+centeredColumn width index =
+  (index + width `div` 2) `mod` width
+
+coordinateMap :: [(State, Int, Int)] -> Map State (Int, Int)
+coordinateMap layout =
+  Map.fromList [(state, (x, y)) | (state, x, y) <- layout]
+
+acceptingPathEdges :: DFA -> Set (State, State)
+acceptingPathEdges dfa =
+  Set.fromList (zip path (drop 1 path))
+  where
+    path = acceptingPath dfa
+
+acceptingPath :: DFA -> [State]
+acceptingPath dfa =
+  search (Set.singleton (dfaStart dfa)) [(dfaStart dfa, [dfaStart dfa])]
+  where
+    search _ [] = [dfaStart dfa]
+    search seen ((state, path) : rest)
+      | length path > 1 && state `Set.member` dfaAccepting dfa = path
+      | otherwise =
+          let next =
+                [ (target, path ++ [target])
+                | target <- nextStates state
+                , target `Set.notMember` seen
+                ]
+              seenAfter = Set.union seen (Set.fromList (map fst next))
+           in search seenAfter (rest ++ next)
+
+    nextStates state =
+      Set.toList
+        ( Set.fromList
+            [ target
+            | ((from, _), target) <- Map.toList (dfaTransitions dfa)
+            , from == state
+            ]
+        )
 
 renderNode :: DFA -> (State, Int, Int) -> String
 renderNode dfa (state, x, y) =
@@ -83,12 +135,12 @@ nodeStyles dfa state =
         then ["accepting"]
         else []
 
-renderPathBlock :: DFA -> [String]
-renderPathBlock dfa
+renderPathBlock :: DFA -> Map State (Int, Int) -> Set (State, State) -> [String]
+renderPathBlock dfa coordinates mainEdges
   | Map.null grouped = []
   | otherwise =
       ["  \\path[->]"]
-        ++ map renderEdge (Map.toList grouped)
+        ++ map (renderEdge coordinates mainEdges) (Map.toList grouped)
         ++ ["  ;"]
   where
     grouped = groupTransitions (dfaTransitions dfa)
@@ -100,23 +152,60 @@ groupTransitions transitions =
     | ((from, ch), to) <- Map.toList transitions
     ]
 
-renderEdge :: ((State, State), Set Char) -> String
-renderEdge ((from, to), labels) =
+renderEdge :: Map State (Int, Int) -> Set (State, State) -> ((State, State), Set Char) -> String
+renderEdge coordinates mainEdges ((from, to), labels) =
   "    (q"
     ++ show from
     ++ ") edge "
-    ++ edgeStyle from to
-    ++ " node {"
+    ++ edgeStyle coordinates mainEdges from to
+    ++ " node"
+    ++ labelStyle coordinates mainEdges from to
+    ++ " {"
     ++ renderLabels labels
     ++ "} (q"
     ++ show to
     ++ ")"
 
-edgeStyle :: State -> State -> String
-edgeStyle from to =
-  if from == to
-    then "[loop above]"
-    else "[bend left=15]"
+edgeStyle :: Map State (Int, Int) -> Set (State, State) -> State -> State -> String
+edgeStyle coordinates mainEdges from to
+  | from == to = loopStyle coordinates from
+  | (from, to) `Set.member` mainEdges = "[bend left=12]"
+  | sameRow coordinates from to =
+      if to > from
+        then "[bend left=15]"
+        else "[bend left=" ++ show (backwardBend from to) ++ "]"
+  | otherwise = "[bend right=10]"
+
+loopStyle :: Map State (Int, Int) -> State -> String
+loopStyle coordinates state =
+  case Map.lookup state coordinates of
+    Just (_, y)
+      | y < 0 -> "[loop below]"
+    _ -> "[loop above]"
+
+backwardBend :: State -> State -> Int
+backwardBend from to =
+  if from - to >= 3
+    then 35
+    else 25
+
+labelStyle :: Map State (Int, Int) -> Set (State, State) -> State -> State -> String
+labelStyle coordinates mainEdges from to
+  | from == to =
+      case Map.lookup from coordinates of
+        Just (_, y)
+          | y < 0 -> "[below]"
+        _ -> "[above]"
+  | (from, to) `Set.member` mainEdges = "[above]"
+  | not (sameRow coordinates from to) = "[below]"
+  | to < from = "[below]"
+  | otherwise = "[above]"
+
+sameRow :: Map State (Int, Int) -> State -> State -> Bool
+sameRow coordinates from to =
+  case (Map.lookup from coordinates, Map.lookup to coordinates) of
+    (Just (_, y1), Just (_, y2)) -> y1 == y2
+    _ -> True
 
 renderLabels :: Set Char -> String
 renderLabels labels =

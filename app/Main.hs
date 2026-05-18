@@ -8,6 +8,7 @@ import Regex.Syntax (Regex, renderRegex)
 import Render.Tikz (renderStandaloneTikz, renderTikzPicture)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
+import System.IO (hPutStrLn, stderr)
 
 data Command
   = PrintAst String
@@ -31,33 +32,34 @@ parseCommand args =
     [] -> promptRegex PrintTikz
     ["--help"] -> pure PrintHelp
     ["-h"] -> pure PrintHelp
-    ["--ast"] -> promptRegex PrintAst
-    "--ast" : rest -> pure (PrintAst (unwords rest))
-    ["--attrs"] -> promptRegex PrintAttrs
-    "--attrs" : rest -> pure (PrintAttrs (unwords rest))
-    ["--nfa"] -> promptRegex PrintNFA
-    "--nfa" : rest -> pure (PrintNFA (unwords rest))
-    ["--dfa"] -> promptRegex PrintDFA
-    "--dfa" : rest -> pure (PrintDFA (unwords rest))
-    ["--tikz"] -> promptRegex PrintTikz
-    "--tikz" : rest -> pure (PrintTikz (unwords rest))
-    ["--tikz-snippet"] -> promptRegex PrintTikzSnippet
-    "--tikz-snippet" : rest -> pure (PrintTikzSnippet (unwords rest))
-    ["--match"] -> do
-      putStrLn "Enter a regular expression:"
-      regex <- getLine
-      putStrLn "Enter a word:"
-      word <- getLine
-      pure (Match regex word)
+    "--ast" : rest -> oneRegexArgument "--ast" PrintAst rest
+    "--attrs" : rest -> oneRegexArgument "--attrs" PrintAttrs rest
+    "--nfa" : rest -> oneRegexArgument "--nfa" PrintNFA rest
+    "--dfa" : rest -> oneRegexArgument "--dfa" PrintDFA rest
+    "--tikz" : rest -> oneRegexArgument "--tikz" PrintTikz rest
+    "--tikz-snippet" : rest -> oneRegexArgument "--tikz-snippet" PrintTikzSnippet rest
     ["--match", regex, word] -> pure (Match regex word)
-    "--match" : _ -> usageFailure
+    "--match" : _ -> matchArityFailure
     flag : _
-      | looksLikeFlag flag -> usageFailure
+      | looksLikeFlag flag -> usageFailureWith ("glushkov-algo: unknown option " ++ show flag ++ ".")
     [regex] -> pure (PrintTikz regex)
-    manyWords ->
-      -- Пробелы в грамматике игнорируются, поэтому склеиваем несколько слов из CLI:
-      -- так случайно забытые кавычки не сразу превращаются в жесткую ошибку.
-      pure (PrintTikz (unwords manyWords))
+    _ -> usageFailureWith "glushkov-algo: REGEX without a flag expects exactly one argument."
+
+oneRegexArgument :: String -> (String -> Command) -> [String] -> IO Command
+oneRegexArgument flag build values =
+  case values of
+    [regex] -> pure (build regex)
+    _ ->
+      usageFailureWith
+        ( unlines
+            [ "glushkov-algo: " ++ flag ++ " expects exactly one REGEX argument."
+            , "Use --match REGEX WORD to check a word."
+            ]
+        )
+
+matchArityFailure :: IO Command
+matchArityFailure =
+  usageFailureWith "glushkov-algo: --match expects exactly REGEX and WORD arguments."
 
 promptRegex :: (String -> Command) -> IO Command
 promptRegex build = do
@@ -71,9 +73,10 @@ looksLikeFlag value =
     '-' : '-' : _ -> True
     _ -> False
 
-usageFailure :: IO Command
-usageFailure = do
-  putStrLn usageText
+usageFailureWith :: String -> IO Command
+usageFailureWith message = do
+  hPutStrLn stderr message
+  hPutStrLn stderr usageText
   exitFailure
 
 runCommand :: Command -> IO ()

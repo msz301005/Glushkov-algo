@@ -146,10 +146,10 @@ tikzTests =
       ]
   , ShouldContainTikz "a" ["(q0)", "(q1)", "{$q_0$}", "{$q_1$}"]
   , ShouldContainTikz "a" ["\\node[state, initial] (q0)", "\\node[state, accepting] (q1)"]
-  , ShouldContainTikz "a" ["node {\\texttt{a}}"]
+  , ShouldContainTikz "a" ["\\texttt{a}"]
   , ShouldContainTikz "\949" ["\\node[state, initial, accepting] (q0)"]
   , ShouldContainTikz "a*" ["loop above"]
-  , ShouldContainTikz "\\*" ["node {\\texttt{*}}"]
+  , ShouldContainTikz "\\*" ["\\texttt{*}"]
   , ShouldContainTikz "(a|a)" ["% q1 = {1, 2}"]
   ]
 
