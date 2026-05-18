@@ -28,31 +28,33 @@ tlmgr init-usertree
 tlmgr --usermode install babel-russian cyrillic cm-super lh standalone pgf enumitem
 ```
 
-## Сборка
 
-```bash
-cabal build
-```
-
-## Тесты
-
-```bash
-cabal test
-```
-
-## Быстрый пример
-
-```bash
-cabal run -v0 glushkov-algo -- --match "(a|b)*abb" "aabb"
-cabal run -v0 glushkov-algo -- --match "(a|b)*abb" "aba"
-```
-
-Ожидаемый результат:
-
-```text
-accept
-reject
-```
+> [!TIP]
+> Сборка
+> 
+> ```bash
+> cabal build
+> ```
+> 
+> Тесты
+> 
+> ```bash
+> cabal test
+> ```
+> 
+> Быстрый пример
+> 
+> ```bash
+> cabal run -v0 glushkov-algo -- --match "(a|b)*abb" "aabb"
+> cabal run -v0 glushkov-algo -- --match "(a|b)*abb" "aba"
+> ```
+> 
+> Ожидаемый результат
+> 
+> ```text
+> accept
+> reject
+> ```
 
 ## Генерация TikZ
 
@@ -88,6 +90,8 @@ scripts/render-regex.sh "(a|b)*abb" generated/abb_dfa
 
 Скрипт создаёт `.tex`, `.pdf` и, если возможно, PNG высокого разрешения. Для качественного PNG лучше иметь ImageMagick (`magick`) или `pdftoppm`; на macOS также подходит `qlmanage`. `sips` используется только как последний запасной вариант и может давать более низкое качество.
 
+![](/generated/abb_dfa.png )
+
 ## Отчет
 
 ```bash
@@ -109,17 +113,17 @@ pdflatex -interaction=nonstopmode -halt-on-error -output-directory report report
 
 Режимы `--ast`, `--attrs`, `--nfa`, `--dfa`, `--tikz` и `--tikz-snippet` принимают ровно один аргумент `REGEX`. Для проверки слова нужен именно `--match REGEX WORD`.
 
-## Важное про shell
 
-Регулярное выражение лучше брать в обычные прямые кавычки `"..."`, иначе shell может перехватить `|`, `*`, `?` или скобки раньше программы.
-
-После имени executable нужен разделитель `--`: всё, что стоит после него, передается программе, а не Cabal.
-
-Экранированная звездочка как литерал:
-
-```bash
-cabal run -v0 glushkov-algo -- --match "\\*" "*"
-```
+> [!WARNING]
+> Регулярное выражение лучше брать в обычные прямые кавычки `"..."`, иначе shell может перехватить `|`, `*`, `?` или скобки раньше программы.
+> 
+> После имени executable нужен разделитель `--`: всё, что стоит после него, передается программе, а не Cabal.
+> 
+> Экранированная звездочка как литерал:
+> 
+> ```bash
+> cabal run -v0 glushkov-algo -- --match "\\*" "*"
+> ```
 
 ## Структура проекта
 
